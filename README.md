@@ -9,7 +9,7 @@ Lorem ipsum
 * Coaching UI - Link to progress tracking and allow selection of texture/material
 * Bugs - ARPlane material for selection does not fully cover plane, ARPlane of floor not detected at times
 
-**Credits**
+**Credits**<br>
 Template from Mixed Reality Example from [Unity-Technologies](https://github.com/Unity-Technologies/mr-example-meta-openxr)
 
 # Mixed Reality Example for Meta-OpenXR Quick Start Guide
