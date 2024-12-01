@@ -1,3 +1,17 @@
+# Scrub-AR-Dub
+
+**Description**
+
+Lorem ipsum
+
+**TODOs**
+* GoalManager.cs - Add removal of color using raycast, progress tracking helpers
+* Coaching UI - Link to progress tracking and allow selection of texture/material
+* Bugs - ARPlane material for selection does not fully cover plane, ARPlane of floor not detected at times
+
+**Credits**
+Template from Mixed Reality Example from [Unity-Technologies](https://github.com/Unity-Technologies/mr-example-meta-openxr)
+
 # Mixed Reality Example for Meta-OpenXR Quick Start Guide
 
 Unity’s **Mixed Reality (MR) Example for Meta-OpenXR** provides a starting point for mixed reality development in Unity. The example configures project settings, pre-installs the right packages, and includes various pre-configured Example Assets to demonstrate how to set up a project that is ready for MR. Please refer to the [XR Project Setup](https://docs.unity3d.com/2022.3/Documentation/Manual/xr-create-projects.html) documentation for additional information.
