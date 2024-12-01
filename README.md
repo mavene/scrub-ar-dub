@@ -10,7 +10,7 @@ Lorem ipsum
 * Bugs - ARPlane material for selection does not fully cover plane, ARPlane of floor not detected at times
 
 **Credits**<br>
-Template from Mixed Reality Example from [Unity-Technologies](https://github.com/Unity-Technologies/mr-example-meta-openxr)
+Mixed Reality App template from [Unity-Technologies](https://github.com/Unity-Technologies/mr-example-meta-openxr)
 
 # Mixed Reality Example for Meta-OpenXR Quick Start Guide
 
