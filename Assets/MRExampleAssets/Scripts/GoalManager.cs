@@ -84,14 +84,25 @@ public class GoalManager : MonoBehaviour
     ARPlaneManager m_ARPlaneManager;
 
     // MY OWN CODE
-    [SerializeField]
-    XRHandSubsystem m_HandSubsystem;
+    // [SerializeField]
+    // LayerMask m_PlaneLayerMask;
+
+    // [SerializeField]
+    // PlaneColorizer m_PlaneColoriser;
 
     [SerializeField]
-    LayerMask m_PlaneLayerMask;
+    GameObject m_PalmObject;
+    
+    [SerializeField]
+    Material m_DefaultPlaneMaterial;  // Original plane material from ARPlaneManager
 
     [SerializeField]
-    PlaneColorizer m_PlaneColoriser;
+    Material m_SelectedPlaneMaterial;  // New material for selected planes
+
+    [SerializeField]
+    float m_TapThreshold = 0.05f;  // Distance threshold for tap detection
+
+    private HashSet<GameObject> m_SelectedPlanes = new HashSet<GameObject>();
 
     private int m_SurfacesTapped = 0;
     private Camera m_MainCamera;
@@ -139,11 +150,6 @@ public class GoalManager : MonoBehaviour
         if (m_LearnModalButton != null)
         {
             m_LearnModalButton.onClick.AddListener(CloseModal);
-        }
-
-        if (m_HandSubsystem == null)
-        {
-            SubsystemManager.GetSubsystems(new List<XRHandSubsystem>());
         }
     
     }
@@ -198,8 +204,13 @@ public class GoalManager : MonoBehaviour
                         m_TapTooltip.SetActive(true);
                     }
                     m_GoalPanelLazyFollow.positionFollowMode = LazyFollow.PositionFollowMode.None;
-                    CheckTap();
+                    // TODO: Call whatever functions to process tapping of surface
+                    // Enable hand tracking for surface interaction
+                    m_IsPalmTapEnabled = true;
+                    CheckSurfaceTap();
                     break;
+                // TODO: Add cases to start CleanSurface goal
+                    // TODO: Call whatever functions to "clean" (remove texture color at pixels)
             }
         }
     }
@@ -255,11 +266,11 @@ public class GoalManager : MonoBehaviour
             m_IsPalmTapEnabled = true;
             m_SurfacesTapped = 0;
             
-            if (m_PlaneColoriser != null)
-            {
-                m_PlaneColoriser.enabled = true;
-                m_PlaneColoriser.ResetColorization();
-            }
+            // if (m_PlaneColoriser != null)
+            // {
+            //     m_PlaneColoriser.enabled = true;
+            //     m_PlaneColoriser.ResetColorization();
+            // }
         }
     }
 
@@ -371,101 +382,121 @@ public class GoalManager : MonoBehaviour
     //     }
     // }   
 
-    // MY CODE
-    void CheckTap()
+    // TODO: Add all your helpers here
+//     void CheckSurfaceTap()
+// {
+//     // Check if the Palm object is available and palm tap is enabled
+//     if (m_IsPalmTapEnabled && m_PalmObject != null)
+//     {
+//         // Get the position and rotation of the palm
+//         Vector3 palmPosition = m_PalmObject.transform.position;
+//         Quaternion palmRotation = m_PalmObject.transform.rotation;
+
+//         // Raycast from the palm's position in the direction the palm is facing
+//         Ray ray = new Ray(palmPosition, palmRotation * Vector3.forward);
+//         RaycastHit hit;
+
+//         if (Physics.Raycast(ray, out hit, m_TapThreshold)) // Raycast with distance limit (m_TapThreshold)
+//         {
+//             // Check if the ray hits an ARPlane
+//             ARPlane arPlane = hit.collider.GetComponent<ARPlane>();
+
+//             if (arPlane != null && !m_SelectedPlanes.Contains(hit.collider.gameObject))
+//             {
+//                 // Check if the hit point is within the threshold distance from the palm
+//                 float distanceToHit = Vector3.Distance(palmPosition, hit.point);
+                
+//                 if (distanceToHit <= m_TapThreshold)
+//                 {
+//                     // Change the material of the ARPlane to indicate selection
+//                     Renderer planeRenderer = arPlane.GetComponent<Renderer>();
+//                     if (planeRenderer != null)
+//                     {
+//                         planeRenderer.material = m_SelectedPlaneMaterial;
+//                     }
+
+//                     // Add to the set of selected planes
+//                     m_SelectedPlanes.Add(hit.collider.gameObject);
+
+//                     // Update the number of surfaces tapped
+//                     m_SurfacesTapped++;
+
+//                     // If the required number of surfaces is tapped, complete the goal
+//                     if (m_SurfacesTapped >= k_NumberOfSurfacesTappedToCompleteGoal)
+//                     {
+//                         CompleteGoal();
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }
+
+    void CheckSurfaceTap()
+{
+    // Check if the Palm object is available and palm tap is enabled
+    if (m_IsPalmTapEnabled && m_PalmObject != null)
     {
-        if (!m_IsPalmTapEnabled || m_HandSubsystem == null || !m_HandSubsystem.running)
-            return;
+        // Get the position and rotation of the palm
+        Vector3 palmPosition = m_PalmObject.transform.position;
+        Quaternion palmRotation = m_PalmObject.transform.rotation;
 
-        // Get both hands
-        XRHand leftHand = m_HandSubsystem.leftHand;
-        XRHand rightHand = m_HandSubsystem.rightHand;
-
-        // Check each hand for palm tap
-        CheckHandPalmTap(leftHand);
-        CheckHandPalmTap(rightHand);
-    }
-
-    // void CheckHandPalmTap(XRHand hand)
-    // {
-    //     if (!hand.isTracked)
-    //         return;
-
-    //     // Get palm position
-    //     Vector3 palmPosition = hand.palm.position;
-        
-    //     // Cast ray from palm position in the forward direction of the camera
-    //     Ray ray = new Ray(palmPosition, m_MainCamera.transform.forward);
-    //     RaycastHit hit;
-
-    //     if (Physics.Raycast(ray, out hit, 2.0f, m_PlaneLayerMask))
-    //     {
-    //         // Check if palm is close enough to the plane (tap threshold)
-    //         float palmDistance = Vector3.Distance(palmPosition, hit.point);
-    //         if (palmDistance < 0.05f) // 5cm threshold for tap
-    //         {
-    //             // Get the ARPlane component
-    //             var planeObject = hit.collider.gameObject;
-    //             if (planeObject != null)
-    //             {
-    //                 // Colorize the plane
-    //                 if (m_PlaneColoriser != null)
-    //                 {
-    //                     m_PlaneColoriser.ColorizePlane(planeObject);
-    //                 }
-                    
-    //                 // Increment tapped counter and check for goal completion
-    //                 m_SurfacesTapped++;
-    //                 if (m_SurfacesTapped >= k_NumberOfSurfacesTappedToCompleteGoal)
-    //                 {
-    //                     m_IsPalmTapEnabled = false; // Disable palm tap detection
-    //                     CompleteGoal();
-    //                     m_GoalPanelLazyFollow.positionFollowMode = LazyFollow.PositionFollowMode.Follow;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    void CheckHandPalmTap(XRHand hand)
-    {
-        if (!hand.isTracked)
-            return;
-
-        // Get palm position - corrected joint access
-        XRHandJoint palmJoint;
-        Vector3 palmPosition = palmJoint.;
-        
-        // Cast ray from palm position in the forward direction of the camera
-        Ray ray = new Ray(palmPosition, m_MainCamera.transform.forward);
+        // Raycast from the palm's position in the direction the palm is facing
+        Ray ray = new Ray(palmPosition, palmRotation * Vector3.forward);
         RaycastHit hit;
 
-        if (Physics.Raycast(ray, out hit, 2.0f, m_PlaneLayerMask))
+        if (Physics.Raycast(ray, out hit, m_TapThreshold)) // Raycast with distance limit (m_TapThreshold)
         {
-            // Check if palm is close enough to the plane (tap threshold)
-            float palmDistance = Vector3.Distance(palmPosition, hit.point);
-            if (palmDistance < 0.05f) // 5cm threshold for tap
+            // Check if the ray hits an ARPlane
+            ARPlane arPlane = hit.collider.GetComponent<ARPlane>();
+
+            if (arPlane != null)
             {
-                // Get the ARPlane component
-                var planeObject = hit.collider.gameObject;
-                if (planeObject != null)
+                GameObject planeObject = hit.collider.gameObject;
+
+                // If the plane is already selected, toggle back to the original material
+                if (m_SelectedPlanes.Contains(planeObject))
                 {
-                    // Colorize the plane
-                    if (m_PlaneColorizer != null)  // Fixed spelling
+                    // Reset to the original material (m_DefaultPlaneMaterial)
+                    Renderer planeRenderer = arPlane.GetComponent<Renderer>();
+                    if (planeRenderer != null)
                     {
-                        m_PlaneColorizer.ColorizePlane(planeObject);  // Fixed spelling
+                        planeRenderer.material = m_DefaultPlaneMaterial;  // Revert to the original material
                     }
-                    
-                    // Increment tapped counter and check for goal completion
+
+                    // Remove from selected planes
+                    m_SelectedPlanes.Remove(planeObject);
+                    m_SurfacesTapped--;
+                }
+                else
+                {
+                    // If the plane is not selected, change it to the selected material
+                    Renderer planeRenderer = arPlane.GetComponent<Renderer>();
+                    if (planeRenderer != null)
+                    {
+                        planeRenderer.material = m_SelectedPlaneMaterial;  // Change to selected material
+                    }
+
+                    // Add to the set of selected planes
+                    m_SelectedPlanes.Add(planeObject);
+
+                    // Update the number of surfaces tapped
                     m_SurfacesTapped++;
+
+                    // If the required number of surfaces is tapped, complete the goal
                     if (m_SurfacesTapped >= k_NumberOfSurfacesTappedToCompleteGoal)
                     {
-                        m_IsPalmTapEnabled = false; // Disable palm tap detection
                         CompleteGoal();
-                        m_GoalPanelLazyFollow.positionFollowMode = LazyFollow.PositionFollowMode.Follow;
                     }
                 }
             }
         }
+    }
+}
 
+
+
+
+
+    
 }
