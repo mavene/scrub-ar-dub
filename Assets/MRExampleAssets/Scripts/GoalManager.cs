@@ -7,7 +7,6 @@ using UnityEngine.UI;
 using UnityEngine.XR.ARFoundation;
 using TMPro;
 using LazyFollow = UnityEngine.XR.Interaction.Toolkit.UI.LazyFollow;
-using UnityEngine.XR.Hands;
 
 public struct Goal
 {
@@ -28,6 +27,7 @@ public class GoalManager : MonoBehaviour
         Empty,
         FindSurfaces,
         TapSurface,
+        CleanSurface
     }
 
     Queue<Goal> m_OnboardingGoals;
@@ -83,13 +83,6 @@ public class GoalManager : MonoBehaviour
     [SerializeField]
     ARPlaneManager m_ARPlaneManager;
 
-    // MY OWN CODE
-    // [SerializeField]
-    // LayerMask m_PlaneLayerMask;
-
-    // [SerializeField]
-    // PlaneColorizer m_PlaneColoriser;
-
     [SerializeField]
     GameObject m_PalmObject;
     
@@ -101,27 +94,50 @@ public class GoalManager : MonoBehaviour
 
     [SerializeField]
     float m_TapThreshold = 0.05f;  // Distance threshold for tap detection
+    
+    [SerializeField]
+    float m_RaycastThreshold = 5f; // Distance threshold for ray cast
 
-    private HashSet<GameObject> m_SelectedPlanes = new HashSet<GameObject>();
+    [SerializeField] 
+    private TMP_Dropdown m_materialSelector;
+
+    [SerializeField]
+    RandomObjectSpawner m_objectSpawner;
+
+    [SerializeField]
+    private Material m_IceMaterial; 
+
+    [SerializeField]
+    private Material m_FarmMaterial; 
+
+    [SerializeField]
+    private Material m_StoneMaterial; 
+
+    public List<GameObject> m_SelectedPlanes = new List<GameObject>();
 
     private int m_SurfacesTapped = 0;
+    private int k_NumberOfSurfacesTappedToCompleteGoal = 2;
     private Camera m_MainCamera;
     private bool m_IsPalmTapEnabled = false;
-    const int k_NumberOfSurfacesTappedToCompleteGoal = 1;
+     private bool m_IsEraserEnabled = false;
     Vector3 m_TargetOffset = new Vector3(-.5f, -.25f, 1.5f);
 
     void Start()
     {
+        Debug.Log("Can I see this in Android Logcat");
+        
         m_OnboardingGoals = new Queue<Goal>();
         var welcomeGoal = new Goal(OnboardingGoals.Empty);
         var findSurfaceGoal = new Goal(OnboardingGoals.FindSurfaces);
         var tapSurfaceGoal = new Goal(OnboardingGoals.TapSurface);
-        var endGoal = new Goal(OnboardingGoals.Empty);
+        var cleanSurfaceGoal = new Goal(OnboardingGoals.CleanSurface);
+        //var endGoal = new Goal(OnboardingGoals.Empty);
 
         m_OnboardingGoals.Enqueue(welcomeGoal);
         m_OnboardingGoals.Enqueue(findSurfaceGoal);
         m_OnboardingGoals.Enqueue(tapSurfaceGoal);
-        m_OnboardingGoals.Enqueue(endGoal);
+        m_OnboardingGoals.Enqueue(cleanSurfaceGoal);
+        //m_OnboardingGoals.Enqueue(endGoal);
 
         m_CurrentGoal = m_OnboardingGoals.Dequeue();
         m_MainCamera = Camera.main;
@@ -151,6 +167,8 @@ public class GoalManager : MonoBehaviour
         {
             m_LearnModalButton.onClick.AddListener(CloseModal);
         }
+
+        
     
     }
 
@@ -174,6 +192,7 @@ public class GoalManager : MonoBehaviour
     {
         if (!m_AllGoalsFinished)
         {
+            Debug.Log($"Current Goal: " + m_CurrentGoal);
             ProcessGoals();
         }
 
@@ -204,13 +223,18 @@ public class GoalManager : MonoBehaviour
                         m_TapTooltip.SetActive(true);
                     }
                     m_GoalPanelLazyFollow.positionFollowMode = LazyFollow.PositionFollowMode.None;
-                    // TODO: Call whatever functions to process tapping of surface
-                    // Enable hand tracking for surface interaction
                     m_IsPalmTapEnabled = true;
                     CheckSurfaceTap();
                     break;
-                // TODO: Add cases to start CleanSurface goal
-                    // TODO: Call whatever functions to "clean" (remove texture color at pixels)
+                case OnboardingGoals.CleanSurface:
+                    if (m_TapTooltip != null)
+                    {
+                        m_TapTooltip.SetActive(false);
+                    }
+                    m_GoalPanelLazyFollow.positionFollowMode = LazyFollow.PositionFollowMode.None;
+                    m_IsEraserEnabled = true;
+                    CleanSurfaceRaycast();
+                    break;
             }
         }
     }
@@ -265,15 +289,17 @@ public class GoalManager : MonoBehaviour
             // Enable palm tap detection
             m_IsPalmTapEnabled = true;
             m_SurfacesTapped = 0;
-            
-            // if (m_PlaneColoriser != null)
-            // {
-            //     m_PlaneColoriser.enabled = true;
-            //     m_PlaneColoriser.ResetColorization();
-            // }
+        }
+        else if (m_CurrentGoal.CurrentGoal == OnboardingGoals.CleanSurface)
+        {
+            if (m_LearnButton != null)
+            {
+                m_LearnButton.SetActive(false);
+            }
+            m_IsEraserEnabled = true;
         }
     }
-
+    
     public IEnumerator TurnOnPlanes()
     {
         yield return new WaitForSeconds(1f);
@@ -330,12 +356,14 @@ public class GoalManager : MonoBehaviour
         var welcomeGoal = new Goal(OnboardingGoals.Empty);
         var findSurfaceGoal = new Goal(OnboardingGoals.FindSurfaces);
         var tapSurfaceGoal = new Goal(OnboardingGoals.TapSurface);
-        var endGoal = new Goal(OnboardingGoals.Empty);
+        var cleanSurfaceGoal = new Goal(OnboardingGoals.CleanSurface);
+        //var endGoal = new Goal(OnboardingGoals.Empty);
 
         m_OnboardingGoals.Enqueue(welcomeGoal);
         m_OnboardingGoals.Enqueue(findSurfaceGoal);
         m_OnboardingGoals.Enqueue(tapSurfaceGoal);
-        m_OnboardingGoals.Enqueue(endGoal);
+        m_OnboardingGoals.Enqueue(cleanSurfaceGoal);
+        //m_OnboardingGoals.Enqueue(endGoal);
 
         for (int i = 0; i < m_StepList.Count; i++)
         {
@@ -368,72 +396,13 @@ public class GoalManager : MonoBehaviour
         }
 
         m_IsPalmTapEnabled = false;
+        m_IsEraserEnabled = false;
         m_SurfacesTapped = 0;
         m_CurrentGoalIndex = 0;
     }
 
-    // void OnObjectSpawned(GameObject spawnedObject)
-    // {
-    //     m_SurfacesTapped++;
-    //     if (m_CurrentGoal.CurrentGoal == OnboardingGoals.TapSurface && m_SurfacesTapped >= k_NumberOfSurfacesTappedToCompleteGoal)
-    //     {
-    //         CompleteGoal();
-    //         m_GoalPanelLazyFollow.positionFollowMode = LazyFollow.PositionFollowMode.Follow;
-    //     }
-    // }   
-
-    // TODO: Add all your helpers here
-//     void CheckSurfaceTap()
-// {
-//     // Check if the Palm object is available and palm tap is enabled
-//     if (m_IsPalmTapEnabled && m_PalmObject != null)
-//     {
-//         // Get the position and rotation of the palm
-//         Vector3 palmPosition = m_PalmObject.transform.position;
-//         Quaternion palmRotation = m_PalmObject.transform.rotation;
-
-//         // Raycast from the palm's position in the direction the palm is facing
-//         Ray ray = new Ray(palmPosition, palmRotation * Vector3.forward);
-//         RaycastHit hit;
-
-//         if (Physics.Raycast(ray, out hit, m_TapThreshold)) // Raycast with distance limit (m_TapThreshold)
-//         {
-//             // Check if the ray hits an ARPlane
-//             ARPlane arPlane = hit.collider.GetComponent<ARPlane>();
-
-//             if (arPlane != null && !m_SelectedPlanes.Contains(hit.collider.gameObject))
-//             {
-//                 // Check if the hit point is within the threshold distance from the palm
-//                 float distanceToHit = Vector3.Distance(palmPosition, hit.point);
-                
-//                 if (distanceToHit <= m_TapThreshold)
-//                 {
-//                     // Change the material of the ARPlane to indicate selection
-//                     Renderer planeRenderer = arPlane.GetComponent<Renderer>();
-//                     if (planeRenderer != null)
-//                     {
-//                         planeRenderer.material = m_SelectedPlaneMaterial;
-//                     }
-
-//                     // Add to the set of selected planes
-//                     m_SelectedPlanes.Add(hit.collider.gameObject);
-
-//                     // Update the number of surfaces tapped
-//                     m_SurfacesTapped++;
-
-//                     // If the required number of surfaces is tapped, complete the goal
-//                     if (m_SurfacesTapped >= k_NumberOfSurfacesTappedToCompleteGoal)
-//                     {
-//                         CompleteGoal();
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
-
     void CheckSurfaceTap()
-{
+    {
     // Check if the Palm object is available and palm tap is enabled
     if (m_IsPalmTapEnabled && m_PalmObject != null)
     {
@@ -442,7 +411,7 @@ public class GoalManager : MonoBehaviour
         Quaternion palmRotation = m_PalmObject.transform.rotation;
 
         // Raycast from the palm's position in the direction the palm is facing
-        Ray ray = new Ray(palmPosition, palmRotation * Vector3.forward);
+        Ray ray = new Ray(palmPosition, palmRotation * Vector3.forward); // TODO: Change to correct calculation
         RaycastHit hit;
 
         if (Physics.Raycast(ray, out hit, m_TapThreshold)) // Raycast with distance limit (m_TapThreshold)
@@ -462,6 +431,7 @@ public class GoalManager : MonoBehaviour
                     if (planeRenderer != null)
                     {
                         planeRenderer.material = m_DefaultPlaneMaterial;  // Revert to the original material
+                        m_objectSpawner.DeleteObjects();
                     }
 
                     // Remove from selected planes
@@ -475,6 +445,7 @@ public class GoalManager : MonoBehaviour
                     if (planeRenderer != null)
                     {
                         planeRenderer.material = m_SelectedPlaneMaterial;  // Change to selected material
+                        m_objectSpawner.SpawnObjectsOnPlane(planeRenderer, 0);
                     }
 
                     // Add to the set of selected planes
@@ -494,9 +465,149 @@ public class GoalManager : MonoBehaviour
     }
 }
 
+private Texture2D maskTexture; // Runtime mask texture
+private Material planeMaterial; // Duplicated material
 
+public void CleanSurfaceRaycast()
+{
+    if (m_PalmObject != null && m_IsEraserEnabled)
+    {
+        // Perform raycast from the palm
+        Vector3 palmPosition = m_PalmObject.transform.position;
+        Ray ray = new Ray(palmPosition, -m_PalmObject.transform.up);
+        RaycastHit hit;
 
+        if (Physics.Raycast(ray, out hit, m_RaycastThreshold))
+        {
+            ARPlane arPlane = hit.collider.GetComponent<ARPlane>();
+            if (arPlane != null)
+            {
+                Renderer planeRenderer = arPlane.GetComponent<Renderer>();
 
+                // Ensure texture is correctly mapped
+                if (planeRenderer != null)
+                {
+                    AdjustTextureTiling(planeRenderer, arPlane);
 
-    
+                    if (maskTexture == null)
+                    {
+                        InitializeEraseMaterial(planeRenderer);
+                    }
+
+                    // Erase texture at correct UV coordinates
+                    EraseAtPoint(hit.textureCoord, 20, planeRenderer);
+                }
+            }
+        }
+    }
+}
+
+void EraseAtPoint(Vector2 uv, int radius, Renderer planeRenderer)
+{
+    Debug.Log($"I can see Erasing at UV: {uv}");
+
+    if (maskTexture == null) return;
+
+    // Correct UV scaling based on texture tiling
+    Vector2 tiling = planeRenderer.material.mainTextureScale;
+    uv.x *= tiling.x;
+    uv.y *= tiling.y;
+
+    // Clamp UV coordinates to ensure they're within range
+    uv.x = Mathf.Repeat(uv.x, 1.0f);
+    uv.y = Mathf.Repeat(uv.y, 1.0f);
+
+    // Convert UV to texture pixel coordinates
+    int hitX = Mathf.FloorToInt(uv.x * maskTexture.width);
+    int hitY = Mathf.FloorToInt(uv.y * maskTexture.height);
+
+    for (int x = -radius; x <= radius; x++)
+    {
+        for (int y = -radius; y <= radius; y++)
+        {
+            if (x * x + y * y <= radius * radius)
+            {
+                int px = Mathf.Clamp(hitX + x, 0, maskTexture.width - 1);
+                int py = Mathf.Clamp(hitY + y, 0, maskTexture.height - 1);
+                maskTexture.SetPixel(px, py, new Color(0, 0, 0, 0)); // Transparent
+            }
+        }
+    }
+
+    maskTexture.Apply();
+
+    Debug.Log($"I can see Erased pixels around UV: ({hitX}, {hitY})");
+}
+
+void InitializeEraseMaterial(Renderer planeRenderer)
+{
+    if (planeMaterial == null)
+    {
+        planeMaterial = new Material(Shader.Find("Custom/EraseTexture"));
+        planeMaterial.SetTexture("_MainTex", planeRenderer.material.mainTexture);
+        planeRenderer.material = planeMaterial;
+
+        int texWidth = 1024; // Higher resolution for better erasure
+        int texHeight = 1024;
+        maskTexture = new Texture2D(texWidth, texHeight, TextureFormat.ARGB32, false);
+
+        // Initialize all pixels to white (fully opaque)
+        Color[] pixels = new Color[texWidth * texHeight];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = Color.white;
+        }
+        maskTexture.SetPixels(pixels);
+        maskTexture.Apply();
+
+        planeMaterial.SetTexture("_MaskTex", maskTexture);
+    }
+}
+
+void AdjustTextureTiling(Renderer planeRenderer, ARPlane arPlane)
+{
+    // Calculate tiling based on the plane's dimensions
+    Vector2 planeSize = arPlane.size;
+    planeRenderer.material.mainTextureScale = planeSize;
+}
+
+public void HandleMaterialSelection()
+{
+    Material selectedMaterial = null;
+
+    switch(m_materialSelector.value)
+    {
+        case 0:
+            selectedMaterial = m_SelectedPlaneMaterial;
+            break;
+        case 1:
+            selectedMaterial = m_IceMaterial;
+            break;
+        case 2:
+            selectedMaterial = m_FarmMaterial;
+            break;
+        case 3:
+            selectedMaterial = m_StoneMaterial;
+            break;
+    }
+
+    if (selectedMaterial != null)
+    {
+        //planeMaterial = new Material(selectedMaterial);
+        
+        // If you have any currently selected planes, update their materials
+        foreach (GameObject plane in m_SelectedPlanes)
+        {
+            Renderer planeRenderer = plane.GetComponent<Renderer>();
+            if (planeRenderer != null)
+            {
+                planeRenderer.material = selectedMaterial;
+                AdjustTextureTiling(planeRenderer, plane.GetComponent<ARPlane>());
+                m_objectSpawner.SpawnObjectsOnPlane(planeRenderer, m_materialSelector.value);
+                InitializeEraseMaterial(planeRenderer);
+            }
+        }
+    }
+}
+
 }
